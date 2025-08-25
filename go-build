@@ -87,7 +87,7 @@ BUILD_OUTPUT="build/${APP_NAME}-${HOST_ARCH}-${HOST_OS}"
 mkdir -p build
 
 # Run the Docker command with the selected image
-docker run --rm -v "$WORKDIR:$GO_ORI_PATH" -w "$GO_ORI_PATH" "$GOLANG_IMAGE" go build -v -o "$BUILD_OUTPUT" ./app/${APP_NAME}/...
+docker run --rm -v "$WORKDIR:$GO_ORI_PATH" -w "$GO_ORI_PATH" "$GOLANG_IMAGE" go build -buildvcs=false -v -o "$BUILD_OUTPUT" ./app/${APP_NAME}/...
 
 # Check if build was successful
 if [ $? -eq 0 ]; then
