@@ -92,30 +92,33 @@ func ConnectInternal() error {
 	// Preparing the DBPool connection that is called by the Handler /connect
 	metrics.StopTimeItPrint(el, "Done")
 
+	db_is_initialized := true
 	el = metrics.StartTimeIt("Reading config table...", 0)
 	err = LoadConfigFromDB(&CurrentNode.InternalConnection)
 	if err != nil {
 		simplelog.LogErrorStr("init", err, "cannot load settings from DB, it is not yet initialized")
-		return err
+//		return err
+		db_is_initialized = false
 	}
 	metrics.StopTimeItPrint(el, "Done")
 
 	// Init DB is done after LoadSettings just in case if settings already initialized??
-	el = metrics.StartTimeIt("Initializing DB tables...", -1)
-	err = InitDB(false)
-	msg := "Initializing DB tables... Done"
-	if err != nil {
-		msg = err.Error()
-	} else {
-		// if no error that means DB is initalized, if it's already initialized it will return err=ErrDBInitializedAlready
-		// call the LoadSEttings again
-		err := LoadConfigFromDB(&CurrentNode.InternalConnection)
-		if err != nil {
-			simplelog.LogErrorStr("connect internal", err, "cannot load settings from DB, it is not yet initialized")
-			return err
+	if !db_is_initialized {
+		el = metrics.StartTimeIt("Initializing DB tables...", -1)
+		err = InitDB(false)
+		if err == nil {
+			// if no error that means DB is initalized, if it's already initialized it will return err=ErrDBInitializedAlready
+			// call the LoadSEttings again
+			err := LoadConfigFromDB(&CurrentNode.InternalConnection)
+			if err != nil {
+				simplelog.LogErrorStr("connect internal", err, "cannot load settings from DB, it is not yet initialized")
+				return err
+			}
+		} else {
+			metrics.StopTimeItPrint(el, err.Error())
 		}
+		metrics.StopTimeItPrint(el, "Done")
 	}
-	metrics.StopTimeItPrint(el, msg)
 
 	// Make the configMaps before reading from DB
 	CurrentNode.Settings = make(Settings)
