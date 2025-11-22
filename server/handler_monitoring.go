@@ -2,6 +2,7 @@ package server
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/medatechnology/suresql"
 	"github.com/medatechnology/simplehttp"
@@ -104,7 +105,7 @@ func HandleAlerts(ctx simplehttp.Context) error {
 	// Get limit from query parameter (default 20)
 	limit := 20
 	if limitStr := ctx.GetQueryParam("limit"); limitStr != "" {
-		if l, err := simplehttp.ParseInt(limitStr); err == nil && l > 0 {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
 			limit = l
 		}
 	}
@@ -151,8 +152,6 @@ func HandleClearAlerts(ctx simplehttp.Context) error {
 
 // HandleDetailedHealth returns detailed health status
 func HandleDetailedHealth(ctx simplehttp.Context) error {
-	state := NewHandlerState(ctx, suresql.CurrentNode.InternalConfig.Username, "/monitoring/health/detailed", "health")
-
 	health := suresql.GetHealthStatus()
 
 	// Add additional details

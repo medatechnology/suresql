@@ -174,6 +174,8 @@ func ConnectInternal() error {
 	// Internal connection is used by the SureSQL Backend only
 	CurrentNode.InternalConnection = db
 	CurrentNode.InternalConfig = conf
+	// Parse SURESQL_INTERNAL_API for monitoring endpoints authentication
+	OverwriteConfigFromEnvironment()
 	// Preparing the DBPool connection that is called by the Handler /connect
 	metrics.StopTimeItPrint(el, "Done")
 

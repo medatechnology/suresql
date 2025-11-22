@@ -1,7 +1,7 @@
 package server
 
 import (
-	"errors"
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -9,6 +9,7 @@ import (
 	"github.com/medatechnology/suresql"
 
 	utils "github.com/medatechnology/goutil"
+	"github.com/medatechnology/goutil/medaerror"
 	"github.com/medatechnology/goutil/metrics"
 	"github.com/medatechnology/goutil/object"
 	"github.com/medatechnology/goutil/simplelog"
@@ -16,24 +17,10 @@ import (
 	"github.com/medatechnology/simplehttp/framework/fiber"
 )
 
-// Mode = r, w, rw, b
-// type ConnectResponse struct {
-// 	Mode   string   `json:"mode"`
-// 	Leader string   `json:"leader"`
-// 	Peers  []string `json:"peers"`
-// 	Token  string   `json:"token"`
-// }
-
 // Define constants for token expiration and generation
 const (
 	DEFAULT_HTTP_ENVIRONMENT = "./.env.suresql"
-	LOG_RAW_QUERY            = false // TODO : this one if on, currently only logging the results, instead of the queries.
-	// NO_ERROR_CODE = 8999 // just a code to denote no_error when using medaerror
-
-	// DB_LOG        = "db"
-	// CONSOLE_LOG   = "console"
-	// STATE_LOGGING        = "db,console"
-	// STATE_LOGGING_EVENTS = "success,error"
+	LOG_RAW_QUERY            = false // TODO: If enabled, log queries instead of just results
 )
 
 // if DB settings is not there, get from environment. DB's settings table always wins
@@ -68,22 +55,22 @@ func CreateServer(cnode suresql.SureSQLNode) simplehttp.Server {
 	server := fiber.NewServer(config)
 	metrics.StopTimeItPrint(el, "Done")
 
-	// Initialize token maps (Redis alternative)
+	// Initialize token maps (Redis alternative) with actual DB config
 	el = metrics.StartTimeIt("Initializing TTLMaps (Redis alternative) ...", 0)
-	InitTokenMaps()
+	InitTokenMaps(cnode.Config.TokenExp, cnode.Config.RefreshExp, cnode.Config.TTLTicker)
 	metrics.StopTimeItPrint(el, "Done")
 
 	// Initialize connection manager and start cleanup routine
 	el = metrics.StartTimeIt("Starting connection cleanup routine...", 0)
 	suresql.InitConnectionManager()
-	// Start cleanup with a background context (will be managed by server lifecycle)
-	go suresql.StartConnectionCleanup(server.Context())
+	// Start cleanup with a background context
+	go suresql.StartConnectionCleanup(context.Background())
 	metrics.StopTimeItPrint(el, "Done")
 
 	// Initialize and start alert monitoring
 	el = metrics.StartTimeIt("Starting alert monitoring system...", 0)
 	suresql.InitAlertManager()
-	go suresql.StartAlerting(server.Context())
+	go suresql.StartAlerting(context.Background())
 	metrics.StopTimeItPrint(el, "Done")
 
 	el = metrics.StartTimeIt("Registring endpoints ...", 0)
@@ -146,7 +133,6 @@ func RegisterRoutes(server simplehttp.Server) {
 		api.POST("/insert", HandleInsert)
 	}
 
-	// simplelog.LogThis("Routes registered successfully")
 }
 
 // HandleConnect authenticates a user and returns tokens
@@ -160,6 +146,11 @@ func HandleConnect(ctx simplehttp.Context) error {
 		return state.SetError("invalid requesst format", err, 0).LogAndResponse("Failed to parse request body", nil, true)
 	}
 	state.User = connectReq.Username
+
+	// Validate username format
+	if err := suresql.ValidateUsername(connectReq.Username); err != nil {
+		return state.SetError("Invalid username", err, http.StatusBadRequest).LogAndResponse("username validation failed", err, true)
+	}
 
 	// Check by username, NOTE: do we need to change this to user.ID instead?
 	user, err := userNameExist(connectReq.Username)
@@ -202,7 +193,7 @@ func HandleConnect(ctx simplehttp.Context) error {
 		suresql.Metrics.RecordAuthentication(true)
 		// state.OnlyLog(fmt.Sprintf("Added new connection to pool, current size: %d/%d", suresql.suresql.CurrentNode.DBConnections.Len(), suresql.CurrentNode.MaxPool), nil, true)
 	} else {
-		err := errors.New("db pool quota exceeded")
+		err := medaerror.NewString("db pool quota exceeded")
 		// Record pool exhaustion
 		suresql.Metrics.RecordPoolExhaustion()
 		suresql.Metrics.RecordAuthentication(false)
@@ -276,7 +267,7 @@ func HandleRefresh(ctx simplehttp.Context) error {
 	} else {
 		// Record pool exhaustion
 		suresql.Metrics.RecordPoolExhaustion()
-		return state.SetError("Connection pool full", errors.New("pool quota exceeded"), http.StatusServiceUnavailable).
+		return state.SetError("Connection pool full", medaerror.NewString("pool quota exceeded"), http.StatusServiceUnavailable).
 			LogAndResponse("cannot create new connection, pool full", nil, true)
 	}
 
@@ -295,7 +286,6 @@ func HandleDBStatus(ctx simplehttp.Context) error {
 	// Get username from context (set by TokenValidationFromTTL)
 	if state.Token == nil {
 		return state.SetError("Cannot retrieve token from context", nil, http.StatusUnauthorized).LogAndResponse("cannot retrieve token from context, should not happen because of middleware", nil, true)
-		// return returnErrorResponse(ctx, http.StatusUnauthorized, "cannot retreive token from context", nil)
 	}
 
 	// Find the user's database connection from TTL map

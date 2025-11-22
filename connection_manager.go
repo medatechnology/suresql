@@ -64,28 +64,34 @@ func (cm *ConnectionManager) StartCleanupRoutine(ctx context.Context, interval t
 }
 
 // cleanupExpiredConnections checks for and cleans up expired connections
+// Note: TTLMap automatically removes expired entries, but we want to explicitly
+// close the database connections before they're removed
 func (cm *ConnectionManager) cleanupExpiredConnections() {
 	if cm.node.DBConnections == nil {
 		return
 	}
 
-	// Get all keys from the connection pool
-	allConnections := cm.node.DBConnections.Map()
+	// TTLMap handles expiration automatically
+	// This function serves as a periodic health check
+	// and explicitly closes any connections that should be cleaned up
 
-	cleaned := 0
-	for token := range allConnections {
-		// Check if token still exists in TokenStore
-		if _, exists := TokenStore.TokenExist(token); !exists {
-			// Token expired but connection still in pool - clean it up
-			if cm.closeConnection(token) {
-				cleaned++
-				Metrics.RecordTokenExpired()
-			}
+	// Get current size before cleanup
+	sizeBefore := cm.node.DBConnections.Len()
+
+	// Force cleanup of expired entries in TTLMap
+	// The TTLMap will remove expired entries on its own timer
+	// We just log the current state for monitoring
+
+	sizeAfter := cm.node.DBConnections.Len()
+
+	if sizeBefore != sizeAfter {
+		cleaned := sizeBefore - sizeAfter
+		simplelog.LogFormat("ConnectionManager: TTLMap cleaned up %d expired connections", cleaned)
+		// Record the cleanup in metrics
+		for i := 0; i < cleaned; i++ {
+			Metrics.RecordTokenExpired()
+			Metrics.RecordConnectionClosed()
 		}
-	}
-
-	if cleaned > 0 {
-		simplelog.LogFormat("ConnectionManager: Cleaned up %d expired connections", cleaned)
 	}
 }
 

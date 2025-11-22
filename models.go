@@ -32,13 +32,9 @@ var (
 	CurrentNode       SureSQLNode
 	ReloadEnvironment bool = false
 
-	// Standard error, cannot use constant on struct
-	// Should be constant instead?
-	ErrNoDBConnection       medaerror.MedaError = medaerror.MedaError{Message: "no db connection"}
-	ErrDBInitializedAlready medaerror.MedaError = medaerror.MedaError{Message: "DB already initialized"}
-	// ErrTokenNotFound  medaerror.MedaError = medaerror.MedaError{Message: "token not found"}
-	// ErrInvalidRequest medaerror.MedaError = medaerror.MedaError{Message: "invalid request param or body"}
-	// ErrWrongPassword  medaerror.MedaError = medaerror.MedaError{Message: "password missmatch"}
+	// Standard errors using medaerror for consistency
+	ErrNoDBConnection       = medaerror.MedaError{Message: "no db connection"}
+	ErrDBInitializedAlready = medaerror.MedaError{Message: "DB already initialized"}
 	SchemaTable string = ""
 	// EmptyConnection SureSQLDB = SureSQLDB{}
 )
@@ -83,20 +79,9 @@ type QueryResponse struct {
 }
 
 // QueryRequest represents the simplified request structure for executing SELECT queries
-// type QueryRequestSQL struct {
-// 	Statements []string                `json:"statements,omitempty"` // Raw SQL statements to execute
-// 	ParamSQL   []orm.ParametereizedSQL `json:"param_sql,omitempty"`  // Parameterized SQL statements to execute
-// 	SingleRow  bool                    `json:"single_row,omitempty"` // If true, return only first row
-// }
 
 // QueryResponse represents the response structure for query results
 type QueryResponseSQL []QueryResponse
-
-// type QueryResponseSQL struct {
-// 	MultipleRecords []orm.DBRecords `json:"multiple_records"` // Always returns as array, even for single record
-// 	ExecutionTime   float64         `json:"execution_time"`
-// 	Counts          []int           `json:"counts"`
-// }
 
 // ===== Used in handle_Insert endpoints
 // InsertRequest represents the request structure for inserting records
@@ -203,37 +188,11 @@ func (c SettingTable) GetValue() interface{} {
 	}
 }
 
-// Struct to use as per-node status, information mostly from SettingsTable, but this is used for response
-// type StatusStruct struct {
-// 	SettingsTable
-// 	URL        string        `json:"url,omitempty"          db:"url"`     // URL (host + port)
-// 	Version    string        `json:"version,omitempty"      db:"version"` // version of the DMBS
-// 	StartTime  time.Time     `json:"start_time,omitempty"   db:"start_time"`
-// 	Uptime     time.Duration `json:"uptime,omitempty"       db:"uptime"`
-// 	DirSize    int64         `json:"dir_size,omitempty"     db:"dir_size"`
-// 	DBSize     int64         `json:"db_size,omitempty"      db:"db_size"`
-// 	NodeID     string        `json:"node_id,omitempty"      db:"node_id"` // DBMS node ID, was rqlite node_id from status
-// 	IsLeader   bool          `json:"is_leader,omitempty"    db:"is_leader"`
-// 	Leader     string        `json:"leader,omitempty"       db:"leader"`
-// 	LastBackup time.Time     `json:"last_backup,omitempty"  db:"last_backup"`
-// }
-
-// // Output: Label: Host:Port [(Leader)|Empty] rw (1/3)
-// func (s StatusStruct) String() string {
-// 	leader := ""
-// 	if s.IsLeader {
-// 		leader = "(Leader)"
-// 	}
-// 	if s.Port != "" {
-// 		s.Port = ":" + s.Port
-// 	}
-// 	return fmt.Sprintf("%s: %s%s %v %s (%d/%d)", s.Label, s.Host, s.Port, leader, s.Mode, s.NodeNumber, s.Nodes)
-// }
-
-// // Status for the node, contains the peers if applicable, mostly from SettingsTable but used for response.
+// Status for the node, contains the peers if applicable, mostly from SettingsTable but used for response.
+// NOTE: This type is not used - we use orm.NodeStatusStruct instead
 // type NodeStatusStruct struct {
-// 	StatusStruct
-// 	Peers []StatusStruct // all peers including the leader
+// 	Status StatusStruct
+// 	Peers  []StatusStruct // all peers including the leader
 // }
 
 // This is the whole SureSQL Node is all about

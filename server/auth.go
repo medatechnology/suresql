@@ -1,8 +1,6 @@
 package server
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -18,12 +16,8 @@ import (
 
 // Constant for auth related like token settings
 const (
-	DECRYPT_FILLER          = "."
 	TOKEN_STRING            = "token"
 	TOKEN_LENGTH_MULTIPLIER = 3 // Controls token length/complexity
-
-	// WRONG_PASSWORD_TEXT     = "password missmatch for user "
-	// INVALID_CREDENTIAL_TEXT = "invalid credential"
 )
 
 // Global variables
@@ -40,16 +34,16 @@ type TokenStoreStruct struct {
 	RefreshTokenMap *medattlmap.TTLMap // For refresh tokens
 }
 
-// InitTokenMaps initializes the token maps with default TTLs
-func InitTokenMaps() {
-	// Initialize with default expiration times
-	TokenStore = NewTokenStore(suresql.DEFAULT_TOKEN_EXPIRES_MINUTES, suresql.DEFAULT_REFRESH_EXPIRES_MINUTES)
+// InitTokenMaps initializes the token maps with configured TTLs from the node
+func InitTokenMaps(tokenExp, refreshExp, ttlTicker time.Duration) {
+	// Use actual configuration from database/environment, not hardcoded defaults
+	TokenStore = NewTokenStore(tokenExp, refreshExp, ttlTicker)
 }
 
-func NewTokenStore(exp, rexp time.Duration) TokenStoreStruct {
+func NewTokenStore(exp, rexp, ttlTicker time.Duration) TokenStoreStruct {
 	return TokenStoreStruct{
-		TokenMap:        medattlmap.NewTTLMap(exp, suresql.DEFAULT_TTL_TICKER_MINUTES),
-		RefreshTokenMap: medattlmap.NewTTLMap(rexp, suresql.DEFAULT_TTL_TICKER_MINUTES),
+		TokenMap:        medattlmap.NewTTLMap(exp, ttlTicker),
+		RefreshTokenMap: medattlmap.NewTTLMap(rexp, ttlTicker),
 	}
 }
 
@@ -70,7 +64,6 @@ func (t TokenStoreStruct) TokenExist(token string) (*suresql.TokenTable, bool) {
 	if !ok {
 		return nil, false
 	}
-	// var tok TokenTable
 	tok := val.(suresql.TokenTable)
 	return &tok, true
 }
@@ -81,7 +74,6 @@ func (t TokenStoreStruct) RefreshTokenExist(token string) (*suresql.TokenTable, 
 	if !ok {
 		return nil, false
 	}
-	// var tok TokenTable
 	tok := val.(suresql.TokenTable)
 	return &tok, true
 }
@@ -117,8 +109,7 @@ func passwordMatch(user UserTable, pass string) error {
 	if user.Password == encr {
 		return nil
 	} else {
-		// return medaerror.NewMedaErrPtr(http.StatusUnauthorized, WRONG_PASSWORD_TEXT+user.Username, INVALID_CREDENTIAL_TEXT, nil)
-		return errors.New("password mismatch for user " + user.Username)
+		return medaerror.NewString("password mismatch for user " + user.Username)
 	}
 }
 
@@ -142,54 +133,3 @@ func createNewTokenResponse(user UserTable) suresql.TokenTable {
 	return token
 }
 
-// ============= NOTE: this are not used at the moment, for future development where we encrypt the
-// =============       data that is passed between request/response
-//
-// If we want to encrypt the credential for DB connect, encapsulated in just a string 'data'
-// Maybe the encrypt from client is using PGP hence the Front-END will encrypt using public key
-// And Backend decrypt with PrivateKey, Then the encrypted "data" is SureSQLConfig json
-type EncryptedCredentials struct {
-	Data string `json:"data"`
-}
-
-type Credentials struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
-}
-
-func DecryptCredentials(data string, apiKey, clientID string) (*Credentials, error) {
-	key := apiKey + DECRYPT_FILLER + clientID
-	decrypted, err := encryption.DecryptWithKey(data, key)
-	if err != nil {
-		return nil, err
-	}
-
-	var creds Credentials
-	err = json.Unmarshal([]byte(decrypted), &creds)
-	if err != nil {
-		return nil, err
-	}
-
-	return &creds, nil
-}
-
-// NOTE: maybe change this to just return empty string if error, then do checking if token=="" instead of error
-func DecodeToken(tokenstring string, config *suresql.SureSQLDBMSConfig) (string, error) {
-	tokenMap, err := encryption.ParseJWEToMap(tokenstring, []byte(config.JWEKey))
-	if err != nil {
-		return "", fmt.Errorf("failed to parse JWE token: %w", err)
-	}
-
-	// Check if token exists in map
-	tokenValue, exists := tokenMap[TOKEN_STRING]
-	if !exists {
-		return "", medaerror.Simple("token not found in JWE payload")
-	}
-
-	if tokenValue != "HELLO_TEST" {
-		return "", medaerror.Simple("token invalid: " + tokenValue)
-	}
-
-	config.Token = tokenValue
-	return config.Token, nil
-}

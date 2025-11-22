@@ -30,7 +30,6 @@ func HandleSQLQuery(ctx simplehttp.Context) error {
 	// Validate that at least one of Statements or ParamSQL is provided
 	if len(queryReqSQL.Statements) == 0 && len(queryReqSQL.ParamSQL) == 0 {
 		return state.SetError("No SQL statements provided", nil, http.StatusBadRequest).LogAndResponse("no sql statement in request body", nil, true)
-		// return returnErrorResponse(ctx, http.StatusBadRequest, "No SQL statements provided", nil)
 	}
 
 	// Find the user's database connection from TTL map
@@ -41,9 +40,6 @@ func HandleSQLQuery(ctx simplehttp.Context) error {
 
 	// Prepare response
 	var reponseMulti suresql.QueryResponseSQL
-
-	// var executionType string
-	// var err error
 
 	// Execute the appropriate type of SQL statements
 	if len(queryReqSQL.Statements) > 0 {
@@ -192,15 +188,6 @@ func HandleSQLQuery(ctx simplehttp.Context) error {
 			}
 		}
 	}
-
-	// Check if only 1 row should be returned
-	// if queryReqSQL.SingleRow {
-	// 	for _, r := range reponseMulti {
-	// 		if r.Count > 1 {
-	// 			return state.SetError("Failed to execute query", orm.ErrSQLMoreThanOneRow, http.StatusBadRequest).LogAndResponse("select only 1 row, returned multiple "+state.Label, queryReqSQL, true)
-	// 		}
-	// 	}
-	// }
 
 	// Calculate total execution time
 	return state.SetSuccess("SQL executed successfully", reponseMulti).LogAndResponse("raw sql query executed successfully", reponseMulti, true)
