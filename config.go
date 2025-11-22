@@ -2,10 +2,13 @@ package suresql
 
 import (
 	"fmt"
+	"strings"
+	"sync"
 
 	orm "github.com/medatechnology/simpleorm"
 
 	utils "github.com/medatechnology/goutil"
+	"github.com/medatechnology/goutil/medaerror"
 	"github.com/medatechnology/goutil/object"
 )
 
@@ -152,9 +155,23 @@ func (sc *SureSQLDBMSConfig) GenerateGoRQLiteURL() {
 	sc.URL = tmpURL
 }
 
+// Cache for DBMS configuration to avoid repeated environment variable lookups
+var (
+	cachedDBMSConfig SureSQLDBMSConfig
+	dbmsConfigOnce   sync.Once
+)
+
 // Reading internal DB configuration for this SureSQL Node, from environment
-// TODO: maybe add second return parameter: error, so caller can check if error then quit the app
+// Cached after first load for performance. Use ReloadDBMSConfig() to force reload.
 func LoadDBMSConfigFromEnvironment() SureSQLDBMSConfig {
+	dbmsConfigOnce.Do(func() {
+		cachedDBMSConfig = loadDBMSConfigFromEnvironment()
+	})
+	return cachedDBMSConfig
+}
+
+// Internal function that actually loads from environment (not cached)
+func loadDBMSConfigFromEnvironment() SureSQLDBMSConfig {
 	tmpConfig := SureSQLDBMSConfig{
 		Host:        utils.GetEnvString("DBMS_HOST", ""),
 		Port:        utils.GetEnvString("DBMS_PORT", ""),
@@ -179,6 +196,13 @@ func LoadDBMSConfigFromEnvironment() SureSQLDBMSConfig {
 	return tmpConfig
 }
 
+// ReloadDBMSConfig forces a reload of DBMS configuration from environment
+// Useful if environment variables change at runtime
+func ReloadDBMSConfig() SureSQLDBMSConfig {
+	cachedDBMSConfig = loadDBMSConfigFromEnvironment()
+	return cachedDBMSConfig
+}
+
 // if DB settings is not there, get from environment. DB's settings table always wins
 func OverwriteConfigFromEnvironment() {
 	ip := utils.GetEnvString("SURESQL_IP", "")
@@ -200,6 +224,14 @@ func OverwriteConfigFromEnvironment() {
 	iAPI := utils.GetEnvString("SURESQL_INTERNAL_API", "")
 	if iAPI != "" {
 		CurrentNode.InternalAPI = iAPI
+		// Parse internal API credentials (format: username:password)
+		if len(iAPI) > 0 {
+			parts := strings.Split(iAPI, ":")
+			if len(parts) >= 2 {
+				CurrentNode.InternalConfig.Username = parts[0]
+				CurrentNode.InternalConfig.Password = parts[1]
+			}
+		}
 	}
 	apiKey := utils.GetEnvString("SURESQL_API_KEY", "")
 	if apiKey != "" {
@@ -249,36 +281,22 @@ func OverwriteConfigFromEnvironment() {
 	if tokenTTL > 0 {
 		CurrentNode.Config.TTLTicker = tokenTTL
 	}
-
-	// if CurrentNode.Configs.Host == "" {
-	// 	CurrentNode.Configs.Host = os.Getenv("SURESQL_HOST")
-	// }
-	// if CurrentNode.Configs.Port == "" {
-	// 	CurrentNode.Configs.Port = os.Getenv("SURESQL_PORT")
-	// }
-	// // CurrentNode.Settings.SSL = os.Getenv("SURESQL_SSL")
-	// if CurrentNode.Configs.DBMS == "" {
-	// 	CurrentNode.Configs.DBMS = os.Getenv("SURESQL_DBMS")
-	// }
-	// if CurrentNode.InternalAPI == "" {
-	// 	CurrentNode.InternalAPI = os.Getenv("SURESQL_INTERNAL_API")
-	// }
-	// tmpBool, _ := strconv.ParseBool(os.Getenv("SURESQL_SSL"))
-	// CurrentNode.Configs.SSL = tmpBool
 }
 
 // LoadConfigFromDB loads settings from _settings table
 func LoadConfigFromDB(db *SureSQLDB) error {
 	record, err := (*db).SelectOne(CurrentNode.Config.TableName())
 	if err != nil {
-		return fmt.Errorf("failed to load settings: %w", err)
+		return medaerror.Errorf("failed to load settings: %v", err)
 	}
 
 	// Get from database
 	CurrentNode.Config = object.MapToStructSlow[ConfigTable](record.Data)
 	CurrentNode.IsEncrypted = CurrentNode.Config.EncryptionMethod != "none"
 	OverwriteConfigFromEnvironment()
-	// TODO: Get the peers and leader
+	// TODO (Clustering): Fetch cluster peers and leader information from DBMS status endpoint
+	// Currently status comes from local config only. Should query actual cluster state.
+	// Priority: Medium | Needed for: Multi-node deployments
 	return nil
 }
 
@@ -288,7 +306,7 @@ func LoadSettingsFromDB(db *SureSQLDB) error {
 		if err != orm.ErrSQLNoRows {
 			return nil
 		}
-		return fmt.Errorf("failed to load configs from DB: %s", err)
+		return medaerror.Errorf("failed to load configs from DB: %v", err)
 	}
 	for _, r := range records {
 		tmp := object.MapToStruct[SettingTable](r.Data)

@@ -23,6 +23,7 @@ go.work.sum
 
 # env file
 .env*
+CLAUDE.md
 
 # credentials or ssh key
 id_ed25519

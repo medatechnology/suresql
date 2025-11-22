@@ -27,8 +27,60 @@ func PingPong() string {
 	return APP_NAME + " " + APP_VERSION + " is running"
 }
 
+// Thread-safe accessor methods for SureSQLNode
+// These methods protect concurrent access to node configuration and state
+
+// GetConfig returns a copy of the current configuration (thread-safe)
+func (n *SureSQLNode) GetConfig() ConfigTable {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.Config
+}
+
+// GetConfigField returns a specific config field (thread-safe)
+func (n *SureSQLNode) GetAPIKey() string {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.Config.APIKey
+}
+
+func (n *SureSQLNode) GetClientID() string {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.Config.ClientID
+}
+
+func (n *SureSQLNode) GetInternalConfig() SureSQLDBMSConfig {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.InternalConfig
+}
+
+// UpdateConfig updates configuration safely (thread-safe)
+func (n *SureSQLNode) UpdateConfig(updateFn func(*ConfigTable)) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	updateFn(&n.Config)
+}
+
+// UpdateStatus updates status safely (thread-safe)
+func (n *SureSQLNode) UpdateStatus(updateFn func(*orm.NodeStatusStruct)) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	updateFn(&n.Status)
+}
+
+// GetStatus returns a copy of current status (thread-safe)
+func (n *SureSQLNode) GetStatus() orm.NodeStatusStruct {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.Status
+}
+
 // Check if pool is enabled, and max pool has not reached
-func (n SureSQLNode) IsPoolAvailable() bool {
+func (n *SureSQLNode) IsPoolAvailable() bool {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
 	if n.IsPoolEnabled && n.DBConnections.Len() < n.MaxPool {
 		return true
 	}
@@ -36,34 +88,67 @@ func (n SureSQLNode) IsPoolAvailable() bool {
 }
 
 // Get the DB connection from pool based on token
-func (n SureSQLNode) GetDBConnectionByToken(token string) (SureSQLDB, error) {
+func (n *SureSQLNode) GetDBConnectionByToken(token string) (SureSQLDB, error) {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
 	var db SureSQLDB
-	if CurrentNode.IsPoolEnabled {
+	if n.IsPoolEnabled {
 		// Get DBConnection based on token
-		dbInterface, ok := CurrentNode.DBConnections.Get(token)
+		dbInterface, ok := n.DBConnections.Get(token)
 		if !ok {
 			return db, ErrNoDBConnection
 		}
 		db = dbInterface.(SureSQLDB)
 	} else {
-		db = CurrentNode.InternalConnection
+		db = n.InternalConnection
 	}
 	return db, nil
 }
 
-// rename the key for DB connection pool to use new token, this is usually because refresh token.
-// TODO: please don't use this anymore, when token is refreshed, the DB connection should be deleted
-// -     and re-create it again fresh with new expiration same with the token expiration.
+// DEPRECATED: RenameDBConnection is deprecated and should not be used.
+// When refreshing tokens, close the old connection and create a new one instead.
+// This function is kept for backwards compatibility but will be removed in a future version.
+// Use CloseDBConnection and create a fresh connection instead.
 func (n *SureSQLNode) RenameDBConnection(old, new string) {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
 	if val, ok := n.DBConnections.Get(old); ok {
 		n.DBConnections.Put(new, 0, val)
 		n.DBConnections.Delete(old)
 	}
 }
 
+// CloseDBConnection closes a database connection by token (thread-safe)
+// Returns true if connection was found and closed, false otherwise
+func (n *SureSQLNode) CloseDBConnection(token string) bool {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	dbInterface, ok := n.DBConnections.Get(token)
+	if !ok {
+		return false
+	}
+
+	// Try to close the connection
+	if db, ok := dbInterface.(SureSQLDB); ok {
+		if closer, ok := interface{}(db).(interface{ Close() error }); ok {
+			closer.Close() // Ignore error - best effort close
+		}
+	}
+
+	// Remove from pool
+	n.DBConnections.Delete(token)
+	return true
+}
+
 // This should be run the first time this package got imported, which is
 // connecting to the DB locally / internally. Not yet used by the client.
 func ConnectInternal() error {
+	// Initialize metrics
+	InitMetrics()
+
 	// Set the global variable for when server is started from making the DBMS connection
 	ServerStartTime = time.Now()
 
@@ -89,6 +174,8 @@ func ConnectInternal() error {
 	// Internal connection is used by the SureSQL Backend only
 	CurrentNode.InternalConnection = db
 	CurrentNode.InternalConfig = conf
+	// Parse SURESQL_INTERNAL_API for monitoring endpoints authentication
+	OverwriteConfigFromEnvironment()
 	// Preparing the DBPool connection that is called by the Handler /connect
 	metrics.StopTimeItPrint(el, "Done")
 

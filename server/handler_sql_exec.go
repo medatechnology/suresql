@@ -32,7 +32,6 @@ func HandleSQLExecution(ctx simplehttp.Context) error {
 	// Validate that at least one of Statements or ParamSQL is provided
 	if len(sqlReq.Statements) == 0 && len(sqlReq.ParamSQL) == 0 {
 		return state.SetError("No SQL statements provided", nil, http.StatusBadRequest).LogAndResponse("no sql statement in request body", nil, true)
-		// return returnErrorResponse(ctx, http.StatusBadRequest, "No SQL statements provided", nil)
 	}
 
 	// Find the user's database connection from TTL map

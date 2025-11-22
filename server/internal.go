@@ -34,13 +34,6 @@ func (u UserTable) TableName() string {
 
 // TODO: add all the ACL tables here as well.
 
-// UserCreateRequest represents the data needed to create a new user
-// type UserCreateRequest struct {
-// 	Username string `json:"username"`
-// 	Password string `json:"password"`
-// 	RoleName string `json:"role_name"` // Optional role name
-// }
-
 // UserUpdateRequest represents the data for updating a user
 type UserUpdateRequest struct {
 	Username    string `json:"username"`                // Required to identify the user
@@ -126,8 +119,11 @@ func HandleCreateUser(ctx simplehttp.Context) error {
 	// Validate required fields
 	if createReq.Username == "" || createReq.Password == "" {
 		return state.SetError("Username and password are required", nil, http.StatusBadRequest).LogAndResponse("missing username or password", nil, true)
-		// simplelog.LogErrorStr("create user", nil, "Missing required fields")
-		// return returnErrorResponse(ctx, http.StatusBadRequest, "Username and password are required", nil)
+	}
+
+	// Validate user input format and length
+	if err := suresql.ValidateUserFields(createReq.Username, createReq.Password, createReq.RoleName); err != nil {
+		return state.SetError("Invalid user input", err, http.StatusBadRequest).LogAndResponse("user validation failed", err, true)
 	}
 
 	// Check if user already exists
@@ -135,8 +131,6 @@ func HandleCreateUser(ctx simplehttp.Context) error {
 	if err == nil {
 		// No error means user was found
 		return state.SetError("User already exists", nil, http.StatusConflict).LogAndResponse("user already exists, cannot create", nil, true)
-		// simplelog.LogErrorStr("create user", nil, "User already exists: "+createReq.Username)
-		// return returnErrorResponse(ctx, http.StatusConflict, "User already exists", nil)
 	}
 
 	// Hash the password
@@ -147,8 +141,6 @@ func HandleCreateUser(ctx simplehttp.Context) error {
 	)
 	if err != nil {
 		return state.SetError("Failed to hash password", err, http.StatusInternalServerError).LogAndResponse("failed to hash password", nil, true)
-		// simplelog.LogErrorAny("create user", err, "Failed to hash password")
-		// return returnErrorResponse(ctx, http.StatusInternalServerError, "Failed to hash password", err)
 	}
 	createReq.Password = hashedPassword
 	createReq.CreatedAt = time.Now().UTC()
@@ -157,8 +149,6 @@ func HandleCreateUser(ctx simplehttp.Context) error {
 	userRec, err := orm.TableStructToDBRecord(createReq)
 	if err != nil {
 		return state.SetError("Failed to create user record", err, http.StatusInternalServerError).LogAndResponse("failed to convert struct to record", nil, true)
-		// simplelog.LogErrorAny("create user", err, "Failed to create record")
-		// return returnErrorResponse(ctx, http.StatusInternalServerError, "Failed to create", err)
 	}
 	// remove ID so when inserting, id will be auto-generated (default value) from the DB
 	delete(userRec.Data, "id")
@@ -168,8 +158,6 @@ func HandleCreateUser(ctx simplehttp.Context) error {
 	err = res.Error
 	if err != nil {
 		return state.SetError("Failed to create user", err, http.StatusInternalServerError).LogAndResponse("failed to insert db", nil, true)
-		// simplelog.LogErrorAny("create user", err, "Failed to create user")
-		// return returnErrorResponse(ctx, http.StatusInternalServerError, "Failed to create user", err)
 	}
 
 	return state.SetSuccess("Users created successfully", map[string]string{
@@ -266,7 +254,7 @@ func HandleUpdateUser(ctx simplehttp.Context) error {
 
 	result := suresql.CurrentNode.InternalConnection.ExecOneSQLParameterized(paramSQL)
 	if result.Error != nil {
-		return state.SetError("Failed to update user", err, http.StatusInternalServerError).LogAndResponse("failed to update db", nil, true)
+		return state.SetError("Failed to update user", result.Error, http.StatusInternalServerError).LogAndResponse("failed to update db", nil, true)
 	}
 
 	return state.SetSuccess("Users updated successfully", user).
@@ -301,7 +289,7 @@ func HandleDeleteUser(ctx simplehttp.Context) error {
 
 	result := suresql.CurrentNode.InternalConnection.ExecOneSQLParameterized(paramSQL)
 	if result.Error != nil {
-		return state.SetError("Failed to delete user", err, http.StatusInternalServerError).LogAndResponse("failed to delete from db", nil, true)
+		return state.SetError("Failed to delete user", result.Error, http.StatusInternalServerError).LogAndResponse("failed to delete from db", nil, true)
 	}
 
 	return state.SetSuccess("Users deleted successfully", nil).LogAndResponse(fmt.Sprintf("user %s deleted successfully", username), "ExecOneSQLParameterized", true)

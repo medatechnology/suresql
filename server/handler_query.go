@@ -35,6 +35,11 @@ func HandleQuery(ctx simplehttp.Context) error {
 		return state.SetError("Table name is required", nil, http.StatusBadRequest).LogAndResponse("no table name in request body", nil, true)
 	}
 
+	// Validate table name format to prevent SQL injection
+	if err := suresql.ValidateTableName(queryReq.Table, false); err != nil {
+		return state.SetError("Invalid table name", err, http.StatusBadRequest).LogAndResponse("table name validation failed", err, true)
+	}
+
 	// Find the user's database connection from TTL map
 	userDB, err := suresql.CurrentNode.GetDBConnectionByToken(state.Token.Token)
 	if err != nil {

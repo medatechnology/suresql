@@ -1,0 +1,56 @@
+Loading environment... Done (816.798µs)
+Loading DBMS config...  Done (48.211µs)
+Making internal connection to DB... Done (75.999µs)
+Reading config table...2025/11/22 05:11:19 !!!init: cannot load settings from DB, it is not yet initialized ERROR:  failed to load settings: query error: no such table: _configs
+ Done (6.340107ms)
+Initializing DB tables...
+Migration directory has [32m0[0m files, proceed migration...2025/11/22 05:11:19 !!!InitDB:  [cannot update settings table] , ERROR:  execute error: no such table: _configs
+ execute error: no such table: _configs (3.205185ms)
+ Done (0s)
+Reading settings table... Done (3.118004ms)
+Reading DBMS status... Done (3.561705ms)
+Applying config table and settings to Node status... Done (40.359µs)
+Loading http environment...Error loading ./.env.simplehttp: open ./.env.simplehttp: no such file or directory Done (262.987µs)
+Creating http server... Done (53.302µs)
+Initializing TTLMaps (Redis alternative) ... Done (26.975µs)
+Starting connection cleanup routine...2025/11/22 05:11:20 #func1: ConnectionManager, Starting connection cleanup routine
+ Done (87.839µs)
+Starting alert monitoring system...2025/11/22 05:11:20 #func1: AlertManager, Starting alert monitoring
+ Done (56.701µs)
+Registring endpoints ... Done (63.279µs)
+Registring internal endpoints ... Done (56.164µs)
+Registring monitoring endpoints ... Done (60.11µs)
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                                [36mSureSQL 0.0.1[0m                                 │
+│                               [32m (0) - Node 0/0[0m                                │
+│                            http://localhost:8080[0m                             │
+│                                                                              │
+│                                                                              │
+│ Mode[0m        : [94m[0m                     Split-write[0m : [94mfalse[0m                       │
+│ IP[0m          : [94m[0m                     DB init[0m     : [94mfalse[0m                       │
+│ Pool[0m        : [94mtrue[0m                 Max pools[0m   : [94m25[0m                          │
+│ Encryption[0m  : [94m[0m                     Hard token[0m  : [94mfalse[0m                       │
+│ Hard JWE[0m    : [94mfalse[0m                API key[0m     : [94mtrue[0m                        │
+│ Client ID[0m   : [94mtrue[0m                 Consistency[0m : [94mweak[0m                        │
+│ Options[0m     : [94m[0m                                                               │
+└──────────────────────────────────────────────────────────────────────────────┘
+MedaHTTP Fiber server starting on localhost:8080
+Registered Middlewares (4)
+Registered routes/endpoints (38)
+
+ ┌───────────────────────────────────────────────────┐ 
+ │                  MedaHTTP/Fiber                   │ 
+ │                   Fiber v2.52.6                   │ 
+ │               http://127.0.0.1:8080               │ 
+ │                                                   │ 
+ │ Handlers ............ 38  Processes ........... 1 │ 
+ │ Prefork ....... Disabled  PID ............. 45014 │ 
+ └───────────────────────────────────────────────────┘ 
+
+[HTTP] INFO 2025/11/22 05:11:31  Completed GET /monitoring/metrics (160.227µs)
+[HTTP] INFO 2025/11/22 05:11:42  Completed GET /monitoring/metrics/pool (36.109µs)
+[HTTP] INFO 2025/11/22 05:11:59  Completed GET /monitoring/alerts (81.251µs)
+[HTTP] INFO 2025/11/22 05:12:12  Completed GET /monitoring/health/detailed (34.555µs)
+[HTTP] INFO 2025/11/22 05:12:26  Completed GET /health (8.241µs)
+[HTTP] INFO 2025/11/22 05:14:03  Completed GET /health (9.174µs)
+[HTTP] INFO 2025/11/22 05:31:57  Completed GET /health (93.938µs)
