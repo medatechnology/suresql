@@ -59,8 +59,9 @@ type SettingsMap map[string]SettingTable
 // Finding key based on category: Settings[category][Key] ie: Settings[token][token_exp].IntValue =
 type Settings map[string]SettingsMap
 
-// This is config needed by SureSQL to connect to Internal DB (DBMS), at this point only RQLite
+// This is config needed by SureSQL to connect to Internal DB (DBMS), supports RQLite and PostgreSQL
 type SureSQLDBMSConfig struct {
+	DBMS        string `json:"dbms,omitempty"            db:"dbms"`     // Database type: "RQLITE", "POSTGRESQL", etc.
 	Host        string `json:"host,omitempty"            db:"host"`
 	Port        string `json:"port,omitempty"            db:"port"`
 	Username    string `json:"username,omitempty"        db:"username"` // this is not used, we use _users table instead
@@ -173,6 +174,7 @@ func LoadDBMSConfigFromEnvironment() SureSQLDBMSConfig {
 // Internal function that actually loads from environment (not cached)
 func loadDBMSConfigFromEnvironment() SureSQLDBMSConfig {
 	tmpConfig := SureSQLDBMSConfig{
+		DBMS:        utils.GetEnvString("DBMS_TYPE", "RQLITE"), // Default to RQLITE for backward compatibility
 		Host:        utils.GetEnvString("DBMS_HOST", ""),
 		Port:        utils.GetEnvString("DBMS_PORT", ""),
 		Username:    utils.GetEnvString("DBMS_USERNAME", ""),

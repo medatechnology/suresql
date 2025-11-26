@@ -1,0 +1,78 @@
+Add PostgreSQL support and example for SureSQL abstraction
+
+This commit adds full PostgreSQL database support to SureSQL's abstraction
+layer and includes a comprehensive example demonstrating the integration.
+
+## Core Changes
+
+### SureSQL Package (suresql.go)
+- Enhanced NewDatabase() to support multiple DBMS types via configuration
+- Added newPostgreSQLDatabase() function for PostgreSQL connections
+- Added newRQLiteDatabase() function (refactored from existing code)
+- Implemented automatic driver selection based on DBMS_TYPE configuration
+- Supports: POSTGRESQL, POSTGRES, RQLITE
+
+### Configuration (config.go)
+- Added DBMS field to SureSQLDBMSConfig struct
+- Added DBMS_TYPE environment variable support (defaults to RQLITE)
+- Maintains backward compatibility with existing RQLite configurations
+
+## New Example: PostgreSQL Integration
+
+Created complete PostgreSQL example in example/postgresql/ demonstrating:
+
+### Features Demonstrated
+- Database abstraction - switch backends by changing DBMS_TYPE env variable
+- Connection management via suresql.NewDatabase()
+- Full CRUD operations (Create, Read, Update, Delete)
+- Table creation with proper schema definition
+- Data insertion with struct-to-record conversion
+- Simple and complex SELECT queries using raw SQL
+- UPDATE and DELETE operations
+- Error handling and logging
+
+### Example Files
+- main.go - Complete CRUD operations example using SureSQL abstraction
+- models.go - Sample data models (User, Product, Order) with db tags
+- .env.sample - Configuration template for PostgreSQL connection
+- .gitignore - Excludes .env files and build artifacts
+- go.mod - Module configuration with local SureSQL replacement
+- README.md - Comprehensive documentation with setup instructions
+
+### Technical Implementation
+- Uses raw SQL queries for reliable cross-database compatibility
+- Proper handling of SelectOneSQL and SelectManySQL return types
+- Demonstrates both simple and complex queries with nested conditions
+- Includes proper error handling and user-friendly logging
+- Fully tested and working with PostgreSQL 17.6
+
+## Benefits
+
+1. **Database Agnostic Architecture**
+   - Single codebase works with multiple database backends
+   - Switch databases by changing one environment variable
+   - No code changes required to support different DBMS
+
+2. **Production Ready**
+   - Comprehensive error handling
+   - Tested with real PostgreSQL instance
+   - Clean separation of concerns
+   - Follows Go best practices
+
+3. **Developer Friendly**
+   - Clear documentation and examples
+   - Easy setup with Docker or local PostgreSQL
+   - Detailed troubleshooting guide
+   - Working example code ready to run
+
+## Testing
+
+Tested successfully with:
+- PostgreSQL 17.6 (Homebrew) on macOS
+- All CRUD operations verified
+- Simple and complex queries working correctly
+- Proper error handling confirmed
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>
